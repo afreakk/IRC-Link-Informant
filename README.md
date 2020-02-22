@@ -1,7 +1,7 @@
 ## IRC Link Informant
 IRC bot that post title of links posted in a channel.   
 Written in [Rust](https://www.rust-lang.org/).
-### Installation:
+### Build:
 ```sh
 git clone git@github.com:afreakk/IRC-Link-Informant.git
 cd IRC-Link-Informant
