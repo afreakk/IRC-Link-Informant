@@ -10,7 +10,7 @@ cargo build --release
 
 ### Usage:
 ```sh
-cp Settings.toml.examle Settings.toml
+cp Settings.toml.example Settings.toml
 vim Settings.toml #set nick, channel, server
 target/release/titlebot #working directory needs to contain Settings.toml
 ```
