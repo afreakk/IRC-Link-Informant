@@ -1,0 +1,4 @@
+channel = "somechannel"
+server = "irc.freenode.net:6667"
+nick = "coolbot"
+name = "bot mc botface"
