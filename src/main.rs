@@ -42,6 +42,7 @@ struct Settings {
     server: String,
     nick: String,
     name: String,
+    user: String,
 }
 fn get_settings() -> Result<Settings, config::ConfigError> {
     let mut settings = config::Config::default();
@@ -58,11 +59,11 @@ fn main() -> Result<(), String> {
                 send_raw_msg_to_stream(&mut stream, &format!("NICK {}", &s.nick))
                     .and(send_raw_msg_to_stream(
                         &mut stream,
-                        &format!("USER rrr 0 * :irc {}", &s.name),
+                        &format!("USER {} 0 * :{}", &s.user, &s.name),
                     ))
                     .and(send_raw_msg_to_stream(
                         &mut stream,
-                        &format!("JOIN #{}", &s.channel),
+                        &format!("JOIN {}", &s.channel),
                     ))
                     .map(|_| stream)
             })
