@@ -1,7 +1,7 @@
 extern crate bufstream;
 extern crate config;
 extern crate linkify;
-extern crate reqwest; // 0.9.18
+extern crate reqwest;
 extern crate select;
 extern crate serde;
 
