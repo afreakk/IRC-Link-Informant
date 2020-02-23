@@ -12,5 +12,5 @@ cargo build --release
 ```sh
 cp Settings.toml.example Settings.toml
 vim Settings.toml #set nick, channel, server
-target/release/titlebot #working directory needs to contain Settings.toml
+target/release/LinkInformant #working directory needs to contain Settings.toml
 ```
