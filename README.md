@@ -1,5 +1,5 @@
 ## IRC Link Informant
-IRC bot that post title of links posted in a channel.   
+IRC bot providing link titles for URLs pasted in a channel.   
 Written in [Rust](https://www.rust-lang.org/).
 ### Build:
 ```sh
