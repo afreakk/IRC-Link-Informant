@@ -464,6 +464,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb147597cdf94ed43ab7a9038716637d2d1bf2bc571da995d0028dec06bd3018"
 
 [[package]]
+name = "link_informant"
+version = "0.1.0"
+dependencies = [
+ "bufstream",
+ "config",
+ "linkify",
+ "reqwest",
+ "select",
+ "serde 1.0.104",
+]
+
+[[package]]
 name = "linked-hash-map"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1334,18 +1346,6 @@ dependencies = [
  "libc",
  "redox_syscall",
  "winapi 0.3.8",
-]
-
-[[package]]
-name = "titlebot"
-version = "0.1.0"
-dependencies = [
- "bufstream",
- "config",
- "linkify",
- "reqwest",
- "select",
- "serde 1.0.104",
 ]
 
 [[package]]
