@@ -65,14 +65,13 @@ fn main() -> Result<(), String> {
                         &mut stream,
                         &format!("JOIN {}", &s.channel),
                     ))
-                    .map(|_| stream)
+                    .map(|_| irc_loop(stream, s))
             })
-            .map(|stream| irc_loop(stream, s))
     })
 }
 
 fn irc_loop(mut stream: BufStream<TcpStream>, s: Settings) {
-    let split_by_channel = format!("PRIVMSG #{}", &s.channel);
+    let split_by_channel = format!("PRIVMSG {}", &s.channel);
     let mut buffer = String::new();
     while let Ok(_) = stream.read_line(&mut buffer) {
         print!(">> {}", buffer);
@@ -108,7 +107,7 @@ fn irc_loop(mut stream: BufStream<TcpStream>, s: Settings) {
 }
 
 fn as_channel_msg(channel: &str, msg: &str) -> String {
-    format!("PRIVMSG #{} :{}", channel, msg)
+    format!("PRIVMSG {} :{}", channel, msg)
 }
 
 fn send_raw_msg_to_stream<W: Write>(w: &mut W, msg: &str) -> Result<String, String> {
