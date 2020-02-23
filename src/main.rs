@@ -35,11 +35,7 @@ fn print_and_discard(r: &Result<String, String>) {
         Err(e) => println!("error: {}", e),
     }
 }
-fn print_and_return(r: &Result<String, String>) -> Result<String, String> {
-    let x = r.clone();
-    print_and_discard(&r);
-    x
-}
+
 #[derive(Debug, Deserialize)]
 struct Settings {
     channel: String,
@@ -54,68 +50,60 @@ fn get_settings() -> Result<Settings, config::ConfigError> {
 }
 
 fn main() -> Result<(), String> {
-    let s = get_settings().unwrap();
-    let split_by_channel = format!("PRIVMSG #{}", &s.channel);
-    TcpStream::connect(&s.server)
-        .map_err(|e| e.to_string())
-        .map(|tcp_stream| BufStream::new(tcp_stream))
-        .and_then(|mut stream| {
-            print_and_return(&send_raw_msg_to_stream(
-                &mut stream,
-                &format!("NICK {}", &s.nick),
-            ))
-            .and_then(|_| {
-                print_and_return(&send_raw_msg_to_stream(
-                    &mut stream,
-                    &format!("USER rrr 0 * :irc {}", &s.name),
-                ))
-            })
-            .and_then(|_| {
-                print_and_return(&send_raw_msg_to_stream(
-                    &mut stream,
-                    &format!("JOIN #{}", &s.channel),
-                ))
-            })
-            .map(|_| stream)
-        })
-        .map(|mut stream| {
-            let mut buffer = String::new();
-            while let Ok(_) = stream.read_line(&mut buffer) {
-                print!(">> {}", buffer);
-                if buffer.starts_with("PING") {
-                    print_and_discard(&send_raw_msg_to_stream(
+    get_settings().map_err(|e| e.to_string()).and_then(|s| {
+        TcpStream::connect(&s.server)
+            .map_err(|e| e.to_string())
+            .map(|tcp_stream| BufStream::new(tcp_stream))
+            .and_then(|mut stream| {
+                send_raw_msg_to_stream(&mut stream, &format!("NICK {}", &s.nick))
+                    .and(send_raw_msg_to_stream(
                         &mut stream,
-                        &buffer.replace("PING", "PONG").trim_end(),
-                    ));
-                } else {
-                    let print_url_title_result: Result<Vec<Result<String, String>>, String> =
-                        buffer
-                            .split(&split_by_channel)
-                            .nth(1)
-                            .ok_or("Not a channel msg".to_owned())
-                            .map(extract_links)
-                            .map(|links| {
-                                links
-                                    .iter()
-                                    .map(get_title_from_link)
-                                    .map(|r| {
-                                        r.and_then(|title| {
-                                            send_raw_msg_to_stream(
-                                                &mut stream,
-                                                &as_channel_msg(&s.channel, &title),
-                                            )
-                                        })
-                                    })
-                                    .collect()
-                            });
-                    match print_url_title_result {
-                        Ok(v) => v.iter().for_each(print_and_discard),
-                        Err(e) => println!("{}", e),
-                    }
-                }
-                buffer.clear();
-            }
-        })
+                        &format!("USER rrr 0 * :irc {}", &s.name),
+                    ))
+                    .and(send_raw_msg_to_stream(
+                        &mut stream,
+                        &format!("JOIN #{}", &s.channel),
+                    ))
+                    .map(|_| stream)
+            })
+            .map(|stream| irc_loop(stream, s))
+    })
+}
+
+fn irc_loop(mut stream: BufStream<TcpStream>, s: Settings) {
+    let split_by_channel = format!("PRIVMSG #{}", &s.channel);
+    let mut buffer = String::new();
+    while let Ok(_) = stream.read_line(&mut buffer) {
+        print!(">> {}", buffer);
+        if buffer.starts_with("PING") {
+            print_and_discard(&send_raw_msg_to_stream(
+                &mut stream,
+                &buffer.replace("PING", "PONG").trim_end(),
+            ));
+        } else {
+            buffer
+                .split(&split_by_channel)
+                .nth(1)
+                .ok_or("Not a channel msg".to_owned())
+                .map(extract_links)
+                .map(|links| {
+                    links
+                        .iter()
+                        .map(get_title_from_link)
+                        .map(|r| {
+                            r.and_then(|title| {
+                                send_raw_msg_to_stream(
+                                    &mut stream,
+                                    &as_channel_msg(&s.channel, &title),
+                                )
+                            })
+                        })
+                        .for_each(|x| print_and_discard(&x))
+                })
+                .unwrap_or_else(|e| println!("e: {}", e));
+        }
+        buffer.clear();
+    }
 }
 
 fn as_channel_msg(channel: &str, msg: &str) -> String {
@@ -125,7 +113,7 @@ fn as_channel_msg(channel: &str, msg: &str) -> String {
 fn send_raw_msg_to_stream<W: Write>(w: &mut W, msg: &str) -> Result<String, String> {
     let to_write = format!("{}\r\n", msg);
     w.write(to_write.as_bytes())
-        .and_then(|_| w.flush())
-        .and_then(|_| Ok(format!("<< {}", to_write)))
+        .and(w.flush())
         .map_err(|e| e.to_string())
+        .map(|_| format!("<< {}", to_write))
 }
