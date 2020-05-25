@@ -52,6 +52,11 @@ fn main() -> Result<(), String> {
             .map_err(|e| e.to_string())
             .and_then(|tcp_stream| {
                 tcp_stream
+                    // Some networks will just hang on bufstream.read_line forever.
+                    // A fix for that is to stop blocking after 200 seconds
+                    // Which will then cause read_line to return Err if get nothing for 200s
+                    // Which we will match and send a ping to server.
+                    // Which will prevent us from geting ping-timeout.
                     .set_read_timeout(Some(std::time::Duration::from_secs(200)))
                     .map_err(|_| "Failed to set_read_timeout".to_string())
                     .map(|_| BufStream::new(tcp_stream))
@@ -101,6 +106,8 @@ fn irc_loop(mut bufstream: BufStream<TcpStream>, s: Settings) {
                 }
             }
             Err(e) => {
+                // This is where we end up if server has not written to us in over 200 seconds
+                // so we then send a ping back to server, to prevent us getting ping-timeout.
                 println!("read_line error: {}", e);
                 print_and_discard(&send_raw_msg_to_stream(&mut bufstream, &last_ping));
             }
