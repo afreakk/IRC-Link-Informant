@@ -50,9 +50,11 @@ fn main() -> Result<(), String> {
     get_settings().map_err(|e| e.to_string()).and_then(|s| {
         TcpStream::connect(&s.server)
             .map_err(|e| e.to_string())
-            .map(|tcp_stream| {
-                tcp_stream.set_read_timeout(Some(std::time::Duration::from_secs(200)));
-                BufStream::new(tcp_stream)
+            .and_then(|tcp_stream| {
+                tcp_stream
+                    .set_read_timeout(Some(std::time::Duration::from_secs(200)))
+                    .map_err(|_| "Failed to set_read_timeout".to_string())
+                    .map(|_| BufStream::new(tcp_stream))
             })
             .and_then(|mut bufstream| {
                 send_raw_msg_to_stream(&mut bufstream, &format!("NICK {}", &s.nick))
@@ -77,10 +79,10 @@ fn irc_loop(mut bufstream: BufStream<TcpStream>, s: Settings) {
             Ok(_) => {
                 print!(">> {}", buffer);
                 if buffer.starts_with("PING") {
-                    last_ping = buffer.clone();
+                    last_ping = buffer.trim_end().to_string();
                     print_and_discard(&send_raw_msg_to_stream(
                         &mut bufstream,
-                        &buffer.replace("PING", "PONG").trim_end(),
+                        &last_ping.replace("PING", "PONG"),
                     ));
                 } else {
                     buffer
