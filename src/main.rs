@@ -81,6 +81,8 @@ fn irc_loop(mut bufstream: BufStream<TcpStream>, s: Settings) {
     let mut last_ping = String::new();
     loop {
         match bufstream.read_line(&mut buffer) {
+            // disconnected probarbly, so just close the app by breaking the loop
+            Ok(0) => break,
             Ok(_) => {
                 print!(">> {}", buffer);
                 if buffer.starts_with("PING") {
