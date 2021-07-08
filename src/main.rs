@@ -50,7 +50,17 @@ fn main() -> Result<(), String> {
     get_settings().map_err(|e| e.to_string()).and_then(|s| {
         TcpStream::connect(&s.server)
             .map_err(|e| e.to_string())
-            .map(|tcp_stream| BufStream::new(tcp_stream))
+            .and_then(|tcp_stream| {
+                tcp_stream
+                    // Some networks will just hang on bufstream.read_line forever.
+                    // A fix for that is to stop blocking after 200 seconds
+                    // Which will then cause read_line to return Err if get nothing for 200s
+                    // Which we will match and send a ping to server.
+                    // Which will prevent us from geting ping-timeout.
+                    .set_read_timeout(Some(std::time::Duration::from_secs(200)))
+                    .map_err(|_| "Failed to set_read_timeout".to_string())
+                    .map(|_| BufStream::new(tcp_stream))
+            })
             .and_then(|mut bufstream| {
                 send_raw_msg_to_stream(&mut bufstream, &format!("NICK {}", &s.nick))
                     .and(send_raw_msg_to_stream(
@@ -67,23 +77,42 @@ fn main() -> Result<(), String> {
 }
 
 fn irc_loop(mut bufstream: BufStream<TcpStream>, s: Settings) {
-    let split_by_channel = format!("PRIVMSG {}", &s.channel);
     let mut buffer = String::new();
-    while let Ok(_) = bufstream.read_line(&mut buffer) {
-        print!(">> {}", buffer);
-        if buffer.starts_with("PING") {
-            print_and_discard(&send_raw_msg_to_stream(
-                &mut bufstream,
-                &buffer.replace("PING", "PONG").trim_end(),
-            ));
-        } else {
-            buffer.split(&split_by_channel).nth(1).map(|chan_msg| {
-                linkify::LinkFinder::new().links(chan_msg).for_each(|link| {
-                    print_and_discard(&get_title_from_link(link).and_then(|title| {
-                        send_raw_msg_to_stream(&mut bufstream, &as_channel_msg(&s.channel, &title))
-                    }))
-                })
-            });
+    let mut last_ping = String::new();
+    loop {
+        match bufstream.read_line(&mut buffer) {
+            // disconnected probarbly, so just close the app by breaking the loop
+            Ok(0) => break,
+            Ok(_) => {
+                print!(">> {}", buffer);
+                if buffer.starts_with("PING") {
+                    last_ping = buffer.trim_end().to_string();
+                    print_and_discard(&send_raw_msg_to_stream(
+                        &mut bufstream,
+                        &last_ping.replace("PING", "PONG"),
+                    ));
+                } else {
+                    buffer
+                        .split(&format!("PRIVMSG {}", &s.channel))
+                        .nth(1)
+                        .map(|chan_msg| {
+                            linkify::LinkFinder::new().links(chan_msg).for_each(|link| {
+                                print_and_discard(&get_title_from_link(link).and_then(|title| {
+                                    send_raw_msg_to_stream(
+                                        &mut bufstream,
+                                        &as_channel_msg(&s.channel, &title),
+                                    )
+                                }))
+                            })
+                        });
+                }
+            }
+            Err(e) => {
+                // This is where we end up if server has not written to us in over 200 seconds
+                // so we then send a ping back to server, to prevent us getting ping-timeout.
+                println!("read_line error: {}", e);
+                print_and_discard(&send_raw_msg_to_stream(&mut bufstream, &last_ping));
+            }
         }
         buffer.clear();
     }
